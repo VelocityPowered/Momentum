@@ -60,19 +60,11 @@ def latest_releases(project_slug):
         .order_by(Build.specific_build_id.desc()).limit(10)\
         .subquery()
 
-    # I don't see any good way out of this
     allowed = [ReleaseStatus.development, ReleaseStatus.beta, ReleaseStatus.stable]
-    releases = None
-    for status in allowed:
-        q = Release.query.filter(Project.id == Release.project_id, Release.status == status)\
+    releases = Release.query.filter(Project.id == Release.project_id, Release.status.in_(allowed))\
             .order_by(Release.created_at.desc())\
-            .limit(1)
-        if releases is None:
-            releases = q
-        else:
-            releases = releases.union(q)
-    releases = releases.subquery()
-
+            .limit(1)\
+            .subquery()
     project = Project.query.filter_by(slug=project_slug)\
         .outerjoin(releases)\
         .outerjoin(builds)\
