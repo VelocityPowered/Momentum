@@ -48,12 +48,14 @@ class Release(db.Model):
     status = db.Column(db.Enum(ReleaseStatus), nullable=False, index=True)
     builds = db.relationship('Build', backref='builds', lazy=True)
     created_at = db.Column(db.DateTime(), default=datetime.now(), nullable=False)
+    released_at = db.Column(db.DateTime(), nullable=True)
 
     def __repr__(self):
         return '<Release %s of %s>' % (self.name, self.project.name)
 
     def as_json(self):
-        base = {'version': self.version, 'status': self.status, 'created_at': self.created_at}
+        base = {'version': self.version, 'status': self.status, 'created_at': self.created_at, 'released_at': \
+            self.released_at}
 
         if len(self.builds) != 0:
             base['builds'] = [b.as_json() for b in self.builds]

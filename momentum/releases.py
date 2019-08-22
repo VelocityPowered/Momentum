@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, redirect, request
-from sqlalchemy import false
+from sqlalchemy import false, text
 from sqlalchemy.orm import contains_eager, load_only
 
 from momentum.models import Project, Release, Build, ReleaseStatus, db
@@ -65,7 +65,7 @@ def latest_releases(project_slug):
     releases = None
     for status in allowed:
         q = Release.query.filter(Project.id == Release.project_id, Release.status == status)\
-            .order_by(Release.created_at.desc())\
+            .order_by(text("string_to_array(version, '.')::int[] desc"))\
             .limit(1)
         if releases is None:
             releases = q
