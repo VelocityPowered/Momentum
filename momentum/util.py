@@ -20,3 +20,12 @@ def emit_json_error(**kwargs):
     response = jsonify(**kwargs)
     response.status_code = status_code
     return response
+
+
+def enum_value_by_name_safe(enum, val):
+    if val is None:
+        return val
+    try:
+        return enum[val]
+    except KeyError:
+        return None

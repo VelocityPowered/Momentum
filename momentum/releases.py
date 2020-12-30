@@ -1,9 +1,9 @@
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, redirect, request, Response
 from sqlalchemy import false, text
 from sqlalchemy.orm import contains_eager, load_only
 
 from momentum.models import Project, Release, Build, ReleaseStatus, db
-from momentum.util import emit_json_error
+from momentum.util import emit_json_error, enum_value_by_name_safe
 
 bp = Blueprint('releases', __name__)
 bp.url_prefix = '/v1/releases'
@@ -176,6 +176,70 @@ def download_build(project_slug, version, build_id):
         return emit_json_error(error="No matching build found", status_code=404)
 
     return redirect(release.builds[0].url)
+
+
+@bp.route('/<project_slug>/versions', methods=['PUT'])
+def add_version(project_slug):
+    if request.method != 'PUT':
+        return emit_json_error(error="Invalid method")
+    
+    if 'status' not in request.form:
+        return emit_json_error(error="Status of release not provided")
+    
+    normalized_status = enum_value_by_name_safe(ReleaseStatus, request.form['status'])
+    if normalized_status is None:
+        return emit_json_error(error="Status is invalid")
+    
+    if 'version' not in request.form:
+        return emit_json_error(error="Version for release not provided")
+
+    project = Project.query.filter_by(slug=project_slug).options(load_only('id')).one_or_none()
+    if project is None:
+        return emit_json_error(error="No such project found", status_code=404)
+
+    release = Release.query.filter(Release.project_id == project.id, Release.version == request.form['version'])\
+        .options(load_only('id')).one_or_none()
+    if release is not None:
+        return emit_json_error(error="Release already exists", status_code=404)
+
+    release = Release()
+    release.project_id = project.id
+    release.version = request.form["version"]
+    release.status = normalized_status
+    db.session.add(release)
+    db.session.commit()
+
+    response = jsonify(ok=True)
+    response.status_code = 201
+    return response
+
+
+@bp.route('/<project_slug>/versions/<version>', methods=['PUT'])
+def edit_version(project_slug, version):
+    if request.method != 'PUT':
+        return emit_json_error(error="Invalid method")
+
+    status_if_changed = request.form.get('status')
+    if status_if_changed is not None and enum_value_by_name_safe(ReleaseStatus, status_if_changed) is None:
+        return emit_json_error(error="Status of release not valid")
+    
+    project = Project.query.filter_by(slug=project_slug).options(load_only('id')).one_or_none()
+    if project is None:
+        return emit_json_error(error="No such project found", status_code=404)
+
+    release = Release.query.filter(Release.project_id == project.id, Release.version == version)\
+        .options(load_only('id')).one_or_none()
+    if release is None:
+        return emit_json_error(error="Release does not exists", status_code=404)
+
+    if status_if_changed is not None:
+        release.status = ReleaseStatus[status_if_changed]
+    db.session.add(release)
+    db.session.commit()
+
+    response = jsonify(ok=True)
+    response.status_code = 201
+    return response
 
 
 @bp.route('/<project_slug>/versions/<version>/builds/<build_id>', methods=['PUT'])

@@ -62,7 +62,8 @@ class Release(db.Model):
 
         if self.status == ReleaseStatus.stable:
             # Try to find a recommended build
-            recommended = Build.query.filter_by(release_id=self.id, recommended=True).first()
+            recommended = Build.query.filter_by(release_id=self.id, recommended=True)\
+                .order_by(Build.built_at.desc()).first()
             if recommended is not None:
                 base['recommended'] = recommended.as_json()
         return base
